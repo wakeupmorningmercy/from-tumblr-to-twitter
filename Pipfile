@@ -1,0 +1,12 @@
+[requires]
+python_version = '3.7'
+
+[packages]
+twitter = '1.18.0'
+Pillow  = '7.1.1'
+
+[dev-packages]
+flake8  = '3.7.9'  
+six     = '1.14.0' 
+setuptools = '40.8.0'
+pytest = '*'

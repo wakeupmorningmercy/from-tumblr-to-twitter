@@ -6,13 +6,21 @@ import xml.etree.ElementTree as ET
 import glob
 import re
 import os
+import html
+import dateparser
+import logging
+
+import credentials
+
+logging.basicConfig(format='%(levelname)s:%(message)s',
+                    level=logging.DEBUG)
 
 
 def init():
-    CONSUMER_KEY = ""
-    CONSUMER_SECRET = ""
-    ACCESS_TOKEN = ""
-    ACCESS_TOKEN_SECRET = ""
+    CONSUMER_KEY = credentials.CONSUMER_KEY
+    CONSUMER_SECRET = credentials.CONSUMER_SECRET
+    ACCESS_TOKEN = credentials.ACCESS_TOKEN
+    ACCESS_TOKEN_SECRET = credentials.ACCESS_TOKEN_SECRET
 
     my_auth = OAuth(token=ACCESS_TOKEN,
                     token_secret=ACCESS_TOKEN_SECRET,
@@ -25,31 +33,39 @@ def init():
     return t, t_up
 
 
+# from: Mon, 24 Mar 2014 09:30:00
+# to:   Mon, 24 Mar 2014
+def format_date(date_str):
+    return dateparser.parse(date_str).strftime('%a, %d %b %Y')
+
+
 # https://stackoverflow.com/questions/753052/strip-html-from-strings-in-python
 # [^<] works too
 def strip_html_tags(text):
     return re.sub('<[^<]+?>', '', text).replace('\n', ' ')
 
 
-def ensure_tweet_limit(caption, tags, date):
-    TWEET_LIMIT = 280
+def ensure_tweet_limit(caption, tags, date_str):
+    TWEET_LIMIT = 279
 
     # strip nontags
     stripped_tags = (
         ' #'.join(list(map(lambda tag: tag.replace('-', '').replace(' ', ''),
                            tags)))
     )
-    stripped_caption = strip_html_tags(caption)
+    stripped_caption = html.unescape(strip_html_tags(caption))
 
-    # status = f"{caption} #{stripped_tags} {date}"
+    date = format_date(date_str)
+
+    # status = f'{caption} #{stripped_tags} {date}'
     # if len(status) <= TWEET_LIMIT:
     #     return status
 
-    status = f"{stripped_caption} #{stripped_tags} {date}"
+    status = f'{stripped_caption} #{stripped_tags} {date}'
     if len(status) <= TWEET_LIMIT:
         return status
 
-    status = f"{stripped_caption} #{stripped_tags}"
+    status = f'{stripped_caption} #{stripped_tags}'
     if len(status) <= TWEET_LIMIT:
         return status
 
@@ -70,7 +86,7 @@ def resize(filename, img, basewidth):
     img.save(new_file_name)
 
     size = os.stat(new_file_name).st_size
-    print(f'resize: {new_file_name} {size}B')
+    logging.debug(f'resize: {new_file_name} {size}B')
     return new_file_name, size
 
 
@@ -84,9 +100,9 @@ def upload(t, t_up, media_file, caption, tags, date):
     for file in files[:MAX_MEDIAS]:
         size = os.stat(file).st_size
         if size > MAX_PICTURE_BYTES:
-            file_name = os.path.splitext(file)[0]
             im = Image.open(file)
             new_size_x = im.size[0] - 100
+            file_name = os.path.splitext(file)[0]
             while size > MAX_PICTURE_BYTES:
                 new_file_name, size = resize(file_name, im, new_size_x)
                 new_size_x -= 100
@@ -99,11 +115,16 @@ def upload(t, t_up, media_file, caption, tags, date):
         id_img = t_up.media.upload(media=imagedata)["media_id_string"]
         media_ids.append(id_img)
 
-    print(media_ids)
-
+    # do not upload tweets without media
     status = ensure_tweet_limit(caption, tags, date)
-    print(status)
-    t.statuses.update(status=status, media_ids=",".join(media_ids))
+    if media_ids:
+        logging.info(f'{status} [{len(status)}]')
+        logging.debug(media_ids)
+
+        t.statuses.update(status=status, media_ids=",".join(media_ids))
+    else:
+        # we miss this tweet
+        logging.warning(f'missing: {status}')
 
 
 def parse():
@@ -119,6 +140,7 @@ def parse():
         if caption_element is not None:
             caption = caption_element.text
         else:
+            # TODO message submission or what
             caption = 'N/A'
 
         tags = []

@@ -12,6 +12,8 @@ import logging
 
 import credentials
 
+YOUR_HASH_TAG = '#wakeupmorning'
+
 logging.basicConfig(format='%(levelname)s:%(message)s',
                     level=logging.DEBUG)
 
@@ -69,7 +71,7 @@ def ensure_tweet_limit(caption, tags, date_str):
     if len(status) <= TWEET_LIMIT:
         return status
 
-    suffix = ' #wakeupmorning'
+    suffix = ' ' + YOUR_HASH_TAG
     status = (
         f"{stripped_caption[:TWEET_LIMIT-len(suffix)]}"
         f"{suffix}"
@@ -163,6 +165,6 @@ if __name__ == '__main__':
     t, up = init()
 
     posts = parse()
-    posts_to_process = posts[71:81]
+    posts_to_process = posts[:]
     for post in posts_to_process:
         upload(t, up, post['id'], post['caption'], post['tags'], post['date'])
